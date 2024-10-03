@@ -1,0 +1,6 @@
+beautifulsoup4==4.12.2
+playwright==1.35.0
+apscheduler==3.10.1
+python-telegram-bot==20.3
+SQLAlchemy==2.0.17
+aiosqlite==0.17.0

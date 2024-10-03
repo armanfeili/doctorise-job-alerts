@@ -1,0 +1,17 @@
+version: '3'
+services:
+  scraper:
+    build: ./scraper
+    container_name: Doctorise_scraper_container
+    volumes:
+      - ./db:/app/db  # Mount the db folder from host to container
+    networks:
+      - project_network
+    environment:
+      - TELEGRAM_BOT_TOKEN=7235372539:AAFFypcvWhsepq2xLOdB5Y8PjkULuCKaNmc
+      - TELEGRAM_CHAT_ID=-1002476963646
+      - DB_FILE=/app/db/jobs.db  # Path to the SQLite DB inside the container
+
+networks:
+  project_network:
+    driver: bridge
