@@ -3,7 +3,7 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, clean_list, generate_unique_id, contains_word
+from scrape_utils import clean_text, clean_list, generate_unique_id
 
 # Helper function to clean text and add strong tags
 def clean_text_with_strong_tags(text, tag):
@@ -87,8 +87,8 @@ async def extract_job_details(page, job_posting):
         logging.error(f"Error extracting details for {job_posting.title}: {e}")
 
 # Async function to scrape jobs from NHS
-async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words):
-    """Scrapes job postings from NHS using Playwright and BeautifulSoup, filtering by stop words."""
+async def scrape_jobs_playwright(url, job_search_engine, category):
+    """Scrapes job postings from NHS using Playwright and BeautifulSoup."""
     job_listings = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -103,15 +103,10 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                 job_elements = soup.find_all('li', class_='nhsuk-list-panel')
                 logging.info(f"Scraping Page {page_number} started.")
 
+                tasks = []
                 for job in job_elements:
                     title_tag = job.find('a', {'data-test': 'search-result-job-title'})
                     title = clean_text(title_tag.text) if title_tag else 'N/A'
-
-                    # Skip the job if the title contains a stop word
-                    if contains_word(title, stop_words):
-                        logging.info(f"Skipped job with title: {title} (contains stop word)")
-                        continue
-
                     job_link = f"https://www.jobs.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
                     location = clean_text(job.find('div', {'data-test': 'search-result-location'}).text or 'N/A')
                     salary = clean_text(job.find('li', {'data-test': 'search-result-salary'}).find('strong').text or 'N/A')
@@ -134,9 +129,12 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                         job_link=job_link
                     )
 
-                    # Extract detailed information
-                    await extract_job_details(page, job_posting)
+                    # Asynchronously extract detailed information
+                    tasks.append(extract_job_details(page, job_posting))
                     job_listings.append(job_posting)
+
+                # Await all the tasks in parallel for faster job details extraction
+                await asyncio.gather(*tasks)
 
                 logging.info(f"Page {page_number} scraped.")
 

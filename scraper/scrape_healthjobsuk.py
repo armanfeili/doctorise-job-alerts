@@ -2,7 +2,7 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, generate_unique_id
+from scrape_utils import clean_text, generate_unique_id, contains_word
 
 # Async function to extract detailed job information
 async def extract_job_details(page, job_posting):
@@ -12,7 +12,6 @@ async def extract_job_details(page, job_posting):
         job_detail_html = await page.content()
         detail_soup = BeautifulSoup(job_detail_html, 'html.parser')
 
-        # Extract detailed information
         job_posting.job_summary = clean_text(detail_soup.find('section', id='hj-job-advert').text if detail_soup.find('section', id='hj-job-advert') else 'N/A')
         job_posting.qualifications = clean_text(detail_soup.find('section', id='hj-job-role-requirement').text if detail_soup.find('section', id='hj-job-role-requirement') else 'N/A')
         job_posting.team_structure = clean_text(detail_soup.find('section', id='hj-employer-header').text if detail_soup.find('section', id='hj-employer-header') else 'N/A')
@@ -23,14 +22,13 @@ async def extract_job_details(page, job_posting):
         job_posting.contract_type = clean_text(detail_soup.find('dt', string='Contract').find_next('dd').text if detail_soup.find('dt', string='Contract') else 'N/A')
         job_posting.reference_number = clean_text(detail_soup.find('dt', string='Job ref').find_next('dd').text if detail_soup.find('dt', string='Job ref') else generate_unique_id(job_posting))
 
-        # Save the job posting to the database
         await save_job_to_db(job_posting)
-        
+
     except Exception as e:
         logging.error(f"Error extracting details for {job_posting.title}: {e}")
 
 # Async function to scrape jobs from HealthJobsUK
-async def scrape_jobs_playwright(url, job_search_engine, category):
+async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words):
     job_listings = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -48,14 +46,35 @@ async def scrape_jobs_playwright(url, job_search_engine, category):
                 job_elements = soup.find_all('li', class_='hj-job')
                 for job in job_elements:
                     title = clean_text(job.find('div', class_='hj-jobtitle').text) if job.find('div', class_='hj-jobtitle') else 'N/A'
+
+                    # Skip jobs with stop words
+                    if contains_word(title, stop_words):
+                        logging.info(f"Skipped job with title: {title} (contains stop word)")
+                        continue
+
                     job_link = f"https://www.healthjobsuk.com{job.find('a')['href']}" if job.find('a', href=True) else 'N/A'
                     location = clean_text(job.find('div', class_='hj-locationtown').text) if job.find('div', class_='hj-locationtown') else 'N/A'
                     salary = clean_text(job.find('div', class_='hj-salary').text) if job.find('div', class_='hj-salary') else 'N/A'
                     contract_type = clean_text(job.find('div', class_='hj-contract').text) if job.find('div', class_='hj-contract') else 'N/A'
                     working_pattern = clean_text(job.find('div', class_='hj-hours').text) if job.find('div', class_='hj-hours') else 'N/A'
+                    
+                    # Extract date_posted and closing_date
+                    date_posted = clean_text(job.find('div', class_='hj-dateposted').text) if job.find('div', class_='hj-dateposted') else 'N/A'
+                    closing_date = clean_text(job.find('div', class_='hj-closingdate').text) if job.find('div', class_='hj-closingdate') else 'N/A'
 
-                    # Create job posting object
-                    job_posting = JobPosting(job_search_engine, category, title, location, salary, 'N/A', 'N/A', contract_type, working_pattern, job_link)
+                    # Create job posting object with all required fields
+                    job_posting = JobPosting(
+                        job_search_engine=job_search_engine,
+                        category=category,
+                        title=title,
+                        location=location,
+                        salary=salary,
+                        date_posted=date_posted,  # Make sure to include this
+                        closing_date=closing_date,  # Make sure to include this
+                        contract_type=contract_type,
+                        working_pattern=working_pattern,
+                        job_link=job_link
+                    )
 
                     # Extract more details
                     await extract_job_details(page, job_posting)

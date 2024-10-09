@@ -1,3 +1,4 @@
+.env
 .idea/
 scraper/__pycache__/
 scraper/.ipynb_checkpoints/
