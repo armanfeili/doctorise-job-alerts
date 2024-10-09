@@ -110,7 +110,7 @@ async def job_exists(reference_number):
 async def save_job_to_db(job_posting):
     async with aiosqlite.connect(Config.DB_FILE) as conn:
         if not await job_exists(job_posting.reference_number):
-            logging.info(f"Inserting job with reference number: {job_posting.reference_number}")
+            logging.info(f"Job Inserted - Reference Number: {job_posting.reference_number}")
 
             job_data = (
                 job_posting.reference_number or 'N/A',
@@ -152,4 +152,4 @@ async def save_job_to_db(job_posting):
             
             await send_telegram_message(job_posting)
         else:
-            logging.error(f"Job with reference number {job_posting.reference_number} already exists in the database.")
+            logging.info(f"Job Existed - Reference Number: {job_posting.reference_number}")

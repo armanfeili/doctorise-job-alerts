@@ -2,34 +2,30 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, generate_unique_id
+from scrape_utils import clean_text, generate_unique_id, contains_word
 
 # Updated async function to extract detailed job information from the job detail page
 async def extract_job_details(page, job_posting):
     try:
         await page.goto(job_posting.job_link, wait_until='networkidle')
-        
-        # Wait for job details to load
         await page.wait_for_selector('.col-md-12.mt-2')
 
         job_detail_html = await page.content()
         detail_soup = BeautifulSoup(job_detail_html, 'html.parser')
 
-        # Extract details
         job_posting.job_description = clean_text(detail_soup.find('div', class_='JT-container').text) if detail_soup.find('div', class_='JT-container') else 'N/A'
         job_posting.contract_type = clean_text(detail_soup.find('strong', class_='closing-date', string='Employment type:').find_next('span').text) if detail_soup.find('strong', class_='closing-date', string='Employment type:') else 'N/A'
         job_posting.qualifications = ' | '.join([clean_text(li.text) for li in detail_soup.find('h3', text="What we'll need you to bring").find_next('ul').find_all('li')]) if detail_soup.find('h3', text="What we'll need you to bring") else 'N/A'
         job_posting.working_pattern = clean_text(detail_soup.find('h3', text='Location and Working Pattern').find_next('p').text) if detail_soup.find('h3', text='Location and Working Pattern') else 'N/A'
         job_posting.employer_contact = clean_text(detail_soup.find('strong', text='Please contact').find_next('p').text) if detail_soup.find('strong', text='Please contact') else 'N/A'
 
-        # Save job to database
         await save_job_to_db(job_posting)
 
     except Exception as e:
         logging.error(f"Error extracting details for {job_posting.title}: {e}")
 
 # Async function to scrape jobs from NHS Scotland
-async def scrape_jobs_playwright(url, job_search_engine, category):
+async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words):
     job_listings = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -48,6 +44,17 @@ async def scrape_jobs_playwright(url, job_search_engine, category):
                 for job in job_elements:
                     title_tag = job.find('a')
                     title = clean_text(title_tag.text) if title_tag else 'N/A'
+
+                    # Filter out jobs based on stop words
+                    if contains_word(title, stop_words):
+                        logging.info(f"Skipped job with title: {title} (contains stop word)")
+                        continue
+                    
+                    # Process jobs with considerable words
+                    if not contains_word(title, considerable_words):
+                        logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
+                        continue  # Skip this job if it doesn't contain any considerable words
+                        
                     job_link = f"https://apply.jobs.scot.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
 
                     # Extract details
@@ -84,7 +91,6 @@ async def scrape_jobs_playwright(url, job_search_engine, category):
 
                 logging.info(f"Page {page_number} scraped.")
 
-                # Handle pagination
                 next_page_tag = soup.find('a', class_='next-page')
                 if next_page_tag:
                     url = f"https://apply.jobs.scot.nhs.uk{next_page_tag['href']}"
