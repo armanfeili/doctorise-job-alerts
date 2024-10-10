@@ -2,7 +2,7 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, generate_unique_id, contains_word
+from scrape_utils import clean_text, generate_unique_id, contains_word, convert_to_standard_date
 
 # Async function to extract detailed job information
 async def extract_job_details(page, job_posting):
@@ -18,7 +18,7 @@ async def extract_job_details(page, job_posting):
         job_posting.job_description = clean_text(detail_soup.find('section', id='hj-job-advert').text if detail_soup.find('section', id='hj-job-advert') else 'N/A')
         job_posting.working_pattern = clean_text(detail_soup.find('dt', string='Hours').find_next('dd').text if detail_soup.find('dt', string='Hours') else 'N/A')
         job_posting.salary = clean_text(detail_soup.find('dt', string='Salary').find_next('dd').text if detail_soup.find('dt', string='Salary') else 'N/A')
-        job_posting.closing_date = clean_text(detail_soup.find('dt', string='Closing').find_next('dd').text if detail_soup.find('dt', string='Closing') else 'N/A')
+        job_posting.closing_date = convert_to_standard_date(clean_text(detail_soup.find('dt', string='Closing').find_next('dd').text if detail_soup.find('dt', string='Closing') else 'N/A'))
         job_posting.contract_type = clean_text(detail_soup.find('dt', string='Contract').find_next('dd').text if detail_soup.find('dt', string='Contract') else 'N/A')
         job_posting.reference_number = clean_text(detail_soup.find('dt', string='Job ref').find_next('dd').text if detail_soup.find('dt', string='Job ref') else generate_unique_id(job_posting))
 
@@ -51,6 +51,11 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                     if contains_word(title, stop_words):
                         logging.info(f"Skipped job with title: {title} (contains stop word)")
                         continue
+                    
+                    # Process jobs with considerable words
+                    if not contains_word(title, considerable_words):
+                        logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
+                        continue  # Skip this job if it doesn't contain any considerable words
 
                     job_link = f"https://www.healthjobsuk.com{job.find('a')['href']}" if job.find('a', href=True) else 'N/A'
                     location = clean_text(job.find('div', class_='hj-locationtown').text) if job.find('div', class_='hj-locationtown') else 'N/A'
@@ -60,7 +65,7 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                     
                     # Extract date_posted and closing_date
                     date_posted = clean_text(job.find('div', class_='hj-dateposted').text) if job.find('div', class_='hj-dateposted') else 'N/A'
-                    closing_date = clean_text(job.find('div', class_='hj-closingdate').text) if job.find('div', class_='hj-closingdate') else 'N/A'
+                    closing_date = convert_to_standard_date(clean_text(job.find('div', class_='hj-closingdate').text) if job.find('div', class_='hj-closingdate') else 'N/A')
 
                     # Create job posting object with all required fields
                     job_posting = JobPosting(

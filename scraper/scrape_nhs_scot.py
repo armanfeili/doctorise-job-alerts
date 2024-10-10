@@ -2,7 +2,7 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, generate_unique_id, contains_word
+from scrape_utils import clean_text, generate_unique_id, contains_word, convert_to_standard_date
 
 # Updated async function to extract detailed job information from the job detail page
 async def extract_job_details(page, job_posting):
@@ -61,7 +61,7 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                     details_section = job.find('div', class_='job-card__description')
                     reference = clean_text(details_section.find('p', class_='jobreference').text.replace('Job reference:', '').strip()) if details_section.find('p', class_='jobreference') else generate_unique_id(title)
                     salary = clean_text(details_section.find('p', class_='salary').text.replace('Salary:', '').strip()) if details_section.find('p', class_='salary') else 'N/A'
-                    closing_date = clean_text(details_section.find('p', class_='closingdate').text.replace('Closing date:', '').strip()) if details_section.find('p', class_='closingdate') else 'N/A'
+                    closing_date = convert_to_standard_date(clean_text(details_section.find('p', class_='closingdate').text.replace('Closing date:', '').strip()) if details_section.find('p', class_='closingdate') else 'N/A')
                     location = clean_text(details_section.find('p', class_='location').text.replace('Location:', '').strip()) if details_section.find('p', class_='location') else 'N/A'
                     employment_type = clean_text(details_section.find('p', class_='employmenttype').text.replace('Employment type:', '').strip()) if details_section.find('p', class_='employmenttype') else 'N/A'
                     hours_per_week = clean_text(details_section.find('p', class_='hours').text.replace('Hours per week:', '').strip()) if details_section.find('p', class_='hours') else 'N/A'
