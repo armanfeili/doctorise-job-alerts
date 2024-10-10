@@ -25,7 +25,7 @@ def format_job_message(job):
         (f"📍 *Location:* {escape_markdown_v2(location)}", location != "N/A"),
         (f"📝 *Type:* {escape_markdown_v2(', '.join(filter(None, [job.contract_type, job.working_pattern])))}", (job.contract_type != "N/A" or job.working_pattern != "N/A")),
         (f"💵 *Salary:* {escape_markdown_v2(job.salary)}", job.salary != "N/A"),
-        (f"📅 *Closing Date:* {escape_markdown_v2(job.closing_date)}", job.closing_date != "N/A"),  # Include closing date
+        (f"🗓 *Closing Date:* {escape_markdown_v2(job.closing_date)}", job.closing_date != "N/A"),  # Include closing date
         ("🩺 *Channel:* @DoctoRiseJobAlerts", True)  # Always include the channel name
     ]
     return "\n\n".join(text for text, condition in fields if condition)
