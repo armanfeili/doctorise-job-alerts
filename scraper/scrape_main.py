@@ -68,9 +68,9 @@ async def main():
     
     # Run all scraping tasks independently with a 5-minute (300 seconds) interval
     # add await before run_scraper to make them running sequentially, not concurrently.
-    nhs_task = run_scraper(scrape_nhs_jobs, nhs_urls, "NHS", "Medical", 300, medical_stop_words, [])
+    nhs_task = run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", 300, medical_stop_words, medical_considerable)
     nhs_scot_task = run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", 300, medical_stop_words, medical_considerable)
-    healthjobsuk_task = run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", 300, medical_stop_words, [])
+    healthjobsuk_task = run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", 300, medical_stop_words, medical_considerable)
 
     # Run all tasks concurrently
     await asyncio.gather(nhs_task, nhs_scot_task, healthjobsuk_task)

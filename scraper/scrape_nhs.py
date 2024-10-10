@@ -3,7 +3,7 @@ import logging
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
-from scrape_utils import clean_text, clean_list, generate_unique_id, contains_word
+from scrape_utils import clean_text, clean_list, generate_unique_id, contains_word, convert_to_standard_date
 
 # Helper function to clean text and add strong tags
 def clean_text_with_strong_tags(text, tag):
@@ -111,12 +111,17 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
                     if contains_word(title, stop_words):
                         logging.info(f"Skipped job with title: {title} (contains stop word)")
                         continue
+                    
+                    # Process jobs with considerable words
+                    if not contains_word(title, considerable_words):
+                        logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
+                        continue  # Skip this job if it doesn't contain any considerable words
 
                     job_link = f"https://www.jobs.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
                     location = clean_text(job.find('div', {'data-test': 'search-result-location'}).text or 'N/A')
                     salary = clean_text(job.find('li', {'data-test': 'search-result-salary'}).find('strong').text or 'N/A')
                     date_posted = clean_text(job.find('li', {'data-test': 'search-result-publicationDate'}).find('strong').text or 'N/A')
-                    closing_date = clean_text(job.find('li', {'data-test': 'search-result-closingDate'}).find('strong').text or 'N/A')
+                    closing_date = convert_to_standard_date(clean_text(job.find('li', {'data-test': 'search-result-closingDate'}).find('strong').text or 'N/A'))
                     contract_type = clean_text(job.find('li', {'data-test': 'search-result-jobType'}).find('strong').text or 'N/A')
                     working_pattern = clean_text(job.find('li', {'data-test': 'search-result-workingPattern'}).find('strong').text or 'N/A')
 
