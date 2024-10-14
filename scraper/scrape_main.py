@@ -12,13 +12,17 @@ from scrape_utils import medical_stop_words, medical_considerable
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# Generic scraping function to handle different sources with interval
+# Create a semaphore to limit the number of concurrent tasks
+sem = asyncio.Semaphore(3)  # Allow up to 3 concurrent tasks
+
+# Generic scraping function to handle different sources with interval and semaphore
 async def run_scraper(scraper_function, urls, job_search_engine, category, interval, stop_words, considarable_words):
     """Runs a scraping task every 'interval' seconds, with error handling and stop words filtering."""
     while True:
         try:
-            logging.info(f"{job_search_engine} scraping started")
-            await scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considarable_words)
+            async with sem:  # Use semaphore to limit concurrency
+                logging.info(f"{job_search_engine} scraping started")
+                await scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considarable_words)
         except Exception as e:
             logging.error(f"Error scraping {job_search_engine}: {e}")
         finally:
@@ -67,12 +71,11 @@ async def main():
     ]
     
     # Run all scraping tasks independently with a 5-minute (300 seconds) interval
-    # add await before run_scraper to make them running sequentially, not concurrently.
     nhs_task = run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", 300, medical_stop_words, medical_considerable)
     nhs_scot_task = run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", 300, medical_stop_words, medical_considerable)
     healthjobsuk_task = run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", 300, medical_stop_words, medical_considerable)
 
-    # Run all tasks concurrently
+    # Run all tasks concurrently with semaphore to limit resource consumption
     await asyncio.gather(nhs_task, nhs_scot_task, healthjobsuk_task)
 
 if __name__ == "__main__":
