@@ -29,9 +29,6 @@ async def extract_job_details(page, job_posting):
 
 # Async function to scrape jobs from HealthJobsUK
 async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words, browser):
-    # Check if jobs.db exists
-    db_exists = os.path.exists('/app/db/jobs.db')
-    max_pages = 2 if db_exists else None  # Set to 2 if db exists, otherwise scrape all pages
     page_number = 1
     
     job_listings = []
@@ -39,11 +36,6 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
         
     try:
         while True:
-            # Handle pagination and stop after 2 pages if db exists
-            if max_pages and page_number > max_pages:
-                logging.info(f"Max pages limit '({max_pages})' reached for {job_search_engine} website, stopping pagination.")
-                break
-            
             await page.goto(url, timeout=60000)
             await page.wait_for_selector('main#hj-main')
             soup = BeautifulSoup(await page.content(), 'html.parser')
