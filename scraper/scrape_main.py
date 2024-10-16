@@ -1,51 +1,40 @@
-import time
 import asyncio
 import logging
-from scrape_db_utils import init_db
 from scrape_nhs import scrape_jobs_playwright as scrape_nhs_jobs
 from scrape_nhs_scot import scrape_jobs_playwright as scrape_nhs_scot_jobs
 from scrape_healthjobsuk import scrape_jobs_playwright as scrape_healthjobsuk_jobs
-
-# Import the stop words from scrape_utils
 from scrape_utils import medical_stop_words, medical_considerable
+from playwright.async_api import async_playwright
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 # Create a semaphore to limit the number of concurrent tasks
-sem = asyncio.Semaphore(3)  # Allow up to 3 concurrent tasks
+sem = asyncio.Semaphore(2)  # Allow up to 2 concurrent tasks
 
-# Generic scraping function to handle different sources with interval and semaphore
-async def run_scraper(scraper_function, urls, job_search_engine, category, interval, stop_words, considarable_words):
-    """Runs a scraping task every 'interval' seconds, with error handling and stop words filtering."""
-    while True:
-        try:
-            async with sem:  # Use semaphore to limit concurrency
-                logging.info(f"{job_search_engine} scraping started")
-                await scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considarable_words)
-        except Exception as e:
-            logging.error(f"Error scraping {job_search_engine}: {e}")
-        finally:
-            logging.info(f"{job_search_engine} scraping finished. Waiting {interval} seconds for the next run.")
-            await asyncio.sleep(interval)
+# Generic scraping function to handle different sources with error handling
+async def run_scraper(scraper_function, urls, job_search_engine, category, stop_words, considerable_words, browser):
+    """Runs a scraping task with error handling and stop words filtering."""
+    try:
+        logging.info(f"{job_search_engine} scraping started")
+        await scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considerable_words, browser)
+    except Exception as e:
+        logging.error(f"Error scraping {job_search_engine}: {e}")
 
 # Generic function to scrape and process jobs
-async def scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considarable_words):
+async def scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considerable_words, browser):
     """Scrapes and processes job postings from given URLs."""
-    await init_db()  # Ensure the database is initialized before scraping
-    start_time = time.time()
     all_jobs = []
     
     for url in urls:
         try:
             logging.info(f"Scraping jobs from {url} ({job_search_engine})")
-            jobs = await scraper_function(url, job_search_engine, category, stop_words, considarable_words)
+            jobs = await scraper_function(url, job_search_engine, category, stop_words, considerable_words, browser)
             all_jobs.extend(jobs)
         except Exception as e:
             logging.error(f"Error scraping {url}: {e}")
     
-    elapsed_time = time.time() - start_time
-    logging.info(f"Scraping from {job_search_engine} completed in {elapsed_time:.2f} seconds")
+    logging.info(f"Scraping from {job_search_engine} completed.")
     return all_jobs
 
 # Main function to scrape jobs from multiple sources independently
@@ -69,14 +58,24 @@ async def main():
         "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=84&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=44801&_srt=startdate&_sd=a",
         "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=444&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=47883&_srt=startdate&_sd=a"
     ]
-    
-    # Run all scraping tasks independently with a 5-minute (300 seconds) interval
-    nhs_task = run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", 300, medical_stop_words, medical_considerable)
-    nhs_scot_task = run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", 300, medical_stop_words, medical_considerable)
-    healthjobsuk_task = run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", 300, medical_stop_words, medical_considerable)
 
-    # Run all tasks concurrently with semaphore to limit resource consumption
-    await asyncio.gather(nhs_task, nhs_scot_task, healthjobsuk_task)
+    # Initialize Playwright and share the browser instance across all tasks
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        
+        while True:
+            logging.info("Starting scraping process...")
+
+            # Run tasks sequentially
+            await run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", medical_stop_words, medical_considerable, browser)
+            await run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", medical_stop_words, medical_considerable, browser)
+            await run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", medical_stop_words, medical_considerable, browser)
+
+            # Wait 300 seconds before the next run
+            logging.info(f"Waiting 300 seconds for the next run.")
+            await asyncio.sleep(300)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
