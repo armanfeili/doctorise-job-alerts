@@ -71,10 +71,6 @@ async def main():
             await run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", medical_stop_words, medical_considerable, browser)
             await run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", medical_stop_words, medical_considerable, browser)
 
-            # Wait 300 seconds before the next run
-            logging.info(f"Waiting 300 seconds for the next run.")
-            await asyncio.sleep(300)
-
 if __name__ == "__main__":
     asyncio.run(main())
 
