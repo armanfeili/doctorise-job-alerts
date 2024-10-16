@@ -1,6 +1,5 @@
-import asyncio
+import os
 import logging
-from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
 from scrape_utils import clean_text, clean_list, generate_unique_id, contains_word, convert_to_standard_date
@@ -43,7 +42,7 @@ def extract_qualifications(soup, tag_name, partial_string, next_tag_stop='h2'):
 async def extract_job_details(page, job_posting):
     """Extracts detailed job information from the NHS job detail page."""
     try:
-        await page.goto(job_posting.job_link, wait_until='networkidle')
+        await page.goto(job_posting.job_link, wait_until='networkidle', timeout=60000)
         await page.wait_for_selector('main.nhsuk-main-wrapper')
         job_detail_html = await page.content()
         detail_soup = BeautifulSoup(job_detail_html, 'html.parser')
@@ -87,79 +86,87 @@ async def extract_job_details(page, job_posting):
         logging.error(f"Error extracting details for {job_posting.title}: {e}")
 
 # Async function to scrape jobs from NHS
-async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words):
+async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words, browser):
     """Scrapes job postings from NHS using Playwright and BeautifulSoup, filtering by stop words."""
+    # Check if jobs.db exists
+    db_exists = os.path.exists('/app/db/jobs.db')
+    max_pages = 2 if db_exists else None  # Set to 2 if db exists, otherwise scrape all pages
+    page_number = 1
+    
     job_listings = []
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        page_number = 1
-        
-        try:
-            while True:
-                await page.goto(url)
-                await page.wait_for_selector('.nhsuk-list.search-results')
-                soup = BeautifulSoup(await page.content(), 'html.parser')
-                job_elements = soup.find_all('li', class_='nhsuk-list-panel')
-                logging.info(f"Scraping Page {page_number} started.")
+    page = await browser.new_page()
+    
+    try:
+        while True:            
+            # Handle pagination and stop after 2 pages if db exists
+            if max_pages and page_number > max_pages:
+                logging.info(f"Max pages limit '({max_pages})' reached for {job_search_engine} website, stopping pagination.")
+                break
+            
+            await page.goto(url, timeout=60000)
+            await page.wait_for_selector('.nhsuk-list.search-results')
+            soup = BeautifulSoup(await page.content(), 'html.parser')
+            job_elements = soup.find_all('li', class_='nhsuk-list-panel')
+            
+            logging.info(f"Scraping Page {page_number} started.")
 
-                for job in job_elements:
-                    title_tag = job.find('a', {'data-test': 'search-result-job-title'})
-                    title = clean_text(title_tag.text) if title_tag else 'N/A'
+            for job in job_elements:
+                title_tag = job.find('a', {'data-test': 'search-result-job-title'})
+                title = clean_text(title_tag.text) if title_tag else 'N/A'
 
-                    # Skip the job if the title contains a stop word
-                    if contains_word(title, stop_words):
-                        logging.info(f"Skipped job with title: {title} (contains stop word)")
-                        continue
-                    
-                    # Process jobs with considerable words
-                    if not contains_word(title, considerable_words):
-                        logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
-                        continue  # Skip this job if it doesn't contain any considerable words
+                # Skip the job if the title contains a stop word
+                if contains_word(title, stop_words):
+                    logging.info(f"Skipped job with title: {title} (contains stop word)")
+                    continue
+                
+                # Process jobs with considerable words
+                if not contains_word(title, considerable_words):
+                    logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
+                    continue
 
-                    job_link = f"https://www.jobs.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
-                    location = clean_text(job.find('div', {'data-test': 'search-result-location'}).text or 'N/A')
-                    salary = clean_text(job.find('li', {'data-test': 'search-result-salary'}).find('strong').text or 'N/A')
-                    date_posted = clean_text(job.find('li', {'data-test': 'search-result-publicationDate'}).find('strong').text or 'N/A')
-                    closing_date = convert_to_standard_date(clean_text(job.find('li', {'data-test': 'search-result-closingDate'}).find('strong').text or 'N/A'))
-                    contract_type = clean_text(job.find('li', {'data-test': 'search-result-jobType'}).find('strong').text or 'N/A')
-                    working_pattern = clean_text(job.find('li', {'data-test': 'search-result-workingPattern'}).find('strong').text or 'N/A')
+                job_link = f"https://www.jobs.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
+                location = clean_text(job.find('div', {'data-test': 'search-result-location'}).text or 'N/A')
+                salary = clean_text(job.find('li', {'data-test': 'search-result-salary'}).find('strong').text or 'N/A')
+                date_posted = clean_text(job.find('li', {'data-test': 'search-result-publicationDate'}).find('strong').text or 'N/A')
+                closing_date = convert_to_standard_date(clean_text(job.find('li', {'data-test': 'search-result-closingDate'}).find('strong').text or 'N/A'))
+                contract_type = clean_text(job.find('li', {'data-test': 'search-result-jobType'}).find('strong').text or 'N/A')
+                working_pattern = clean_text(job.find('li', {'data-test': 'search-result-workingPattern'}).find('strong').text or 'N/A')
 
-                    # Create JobPosting object
-                    job_posting = JobPosting(
-                        job_search_engine=job_search_engine,
-                        category=category,
-                        title=title,
-                        location=location,
-                        salary=salary,
-                        date_posted=date_posted,
-                        closing_date=closing_date,
-                        contract_type=contract_type,
-                        working_pattern=working_pattern,
-                        job_link=job_link
-                    )
+                # Create JobPosting object
+                job_posting = JobPosting(
+                    job_search_engine=job_search_engine,
+                    category=category,
+                    title=title,
+                    location=location,
+                    salary=salary,
+                    date_posted=date_posted,
+                    closing_date=closing_date,
+                    contract_type=contract_type,
+                    working_pattern=working_pattern,
+                    job_link=job_link
+                )
 
-                    # Extract detailed information
-                    await extract_job_details(page, job_posting)
-                    job_listings.append(job_posting)
+                # Extract detailed information
+                await extract_job_details(page, job_posting)
+                job_listings.append(job_posting)
 
-                logging.info(f"Page {page_number} scraped.")
+            logging.info(f"Page {page_number} scraped.")
 
-                # Handle pagination
-                next_page_tag = soup.find('li', class_='nhsuk-pagination-item--next')
-                if next_page_tag:
-                    next_page_link = next_page_tag.find('a', {'data-test': 'search-next-page'})
-                    if next_page_link and 'href' in next_page_link.attrs:
-                        url = f"https://www.jobs.nhs.uk{next_page_link['href']}"
-                        page_number += 1
-                    else:
-                        break
+            next_page_tag = soup.find('li', class_='nhsuk-pagination-item--next')
+            if next_page_tag:
+                next_page_link = next_page_tag.find('a', {'data-test': 'search-next-page'})
+                if next_page_link and 'href' in next_page_link.attrs:
+                    url = f"https://www.jobs.nhs.uk{next_page_link['href']}"
+                    page_number += 1
                 else:
                     break
+            else:
+                break
 
-        except Exception as e:
-            logging.error(f"Error while scraping page {page_number}: {e}")
-        finally:
-            await browser.close()
+    except Exception as e:
+        logging.error(f"Error while scraping page {page_number}: {e}")
+    finally:
+        await page.close()
 
     return job_listings
+

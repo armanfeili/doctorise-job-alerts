@@ -1,5 +1,4 @@
 import logging
-from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from scrape_db_utils import JobPosting, save_job_to_db
 from scrape_utils import clean_text, generate_unique_id, contains_word, convert_to_standard_date
@@ -7,7 +6,7 @@ from scrape_utils import clean_text, generate_unique_id, contains_word, convert_
 # Updated async function to extract detailed job information from the job detail page
 async def extract_job_details(page, job_posting):
     try:
-        await page.goto(job_posting.job_link, wait_until='networkidle')
+        await page.goto(job_posting.job_link, wait_until='networkidle', timeout=60000)
         await page.wait_for_selector('.col-md-12.mt-2')
 
         job_detail_html = await page.content()
@@ -24,83 +23,81 @@ async def extract_job_details(page, job_posting):
     except Exception as e:
         logging.error(f"Error extracting details for {job_posting.title}: {e}")
 
-# Async function to scrape jobs from NHS Scotland
-async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words):
+# Async function to scrape jobs from NHS Scotland (now reuses the shared browser)
+async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, considerable_words, browser):
     job_listings = []
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        page_number = 1
+    page = await browser.new_page()  # Reuse the shared browser instance to create a new page
+    page_number = 1
 
-        try:
-            while True:
-                await page.goto(url)
-                await page.wait_for_selector('.job-search__results-items')
-                soup = BeautifulSoup(await page.content(), 'html.parser')
-                job_elements = soup.find_all('div', class_='job-card')
+    try:
+        while True:
+            await page.goto(url, timeout=60000)
+            await page.wait_for_selector('.job-search__results-items')
+            soup = BeautifulSoup(await page.content(), 'html.parser')
+            job_elements = soup.find_all('div', class_='job-card')
 
-                logging.info(f"Scraping Page {page_number} started.")
+            logging.info(f"Scraping Page {page_number} started.")
 
-                for job in job_elements:
-                    title_tag = job.find('a')
-                    title = clean_text(title_tag.text) if title_tag else 'N/A'
+            for job in job_elements:
+                title_tag = job.find('a')
+                title = clean_text(title_tag.text) if title_tag else 'N/A'
 
-                    # Filter out jobs based on stop words
-                    if contains_word(title, stop_words):
-                        logging.info(f"Skipped job with title: {title} (contains stop word)")
-                        continue
+                # Filter out jobs based on stop words
+                if contains_word(title, stop_words):
+                    logging.info(f"Skipped job with title: {title} (contains stop word)")
+                    continue
+                
+                # Process jobs with considerable words
+                if not contains_word(title, considerable_words):
+                    logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
+                    continue  # Skip this job if it doesn't contain any considerable words
                     
-                    # Process jobs with considerable words
-                    if not contains_word(title, considerable_words):
-                        logging.info(f"Skipped job with title: {title} (does not contain any considerable word)")
-                        continue  # Skip this job if it doesn't contain any considerable words
-                        
-                    job_link = f"https://apply.jobs.scot.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
+                job_link = f"https://apply.jobs.scot.nhs.uk{title_tag['href']}" if title_tag else 'N/A'
 
-                    # Extract details
-                    details_section = job.find('div', class_='job-card__description')
-                    reference = clean_text(details_section.find('p', class_='jobreference').text.replace('Job reference:', '').strip()) if details_section.find('p', class_='jobreference') else generate_unique_id(title)
-                    salary = clean_text(details_section.find('p', class_='salary').text.replace('Salary:', '').strip()) if details_section.find('p', class_='salary') else 'N/A'
-                    closing_date = convert_to_standard_date(clean_text(details_section.find('p', class_='closingdate').text.replace('Closing date:', '').strip()) if details_section.find('p', class_='closingdate') else 'N/A')
-                    location = clean_text(details_section.find('p', class_='location').text.replace('Location:', '').strip()) if details_section.find('p', class_='location') else 'N/A'
-                    employment_type = clean_text(details_section.find('p', class_='employmenttype').text.replace('Employment type:', '').strip()) if details_section.find('p', class_='employmenttype') else 'N/A'
-                    hours_per_week = clean_text(details_section.find('p', class_='hours').text.replace('Hours per week:', '').strip()) if details_section.find('p', class_='hours') else 'N/A'
-                    live_date = clean_text(details_section.find('p', class_='livedate').text.replace('Live date:', '').strip()) if details_section.find('p', class_='livedate') else 'N/A'
-                    employer = clean_text(details_section.find('p', class_='school').text.replace('Employer (NHS Board):', '').strip()) if details_section.find('p', class_='school') else 'N/A'
+                # Extract details
+                details_section = job.find('div', class_='job-card__description')
+                reference = clean_text(details_section.find('p', class_='jobreference').text.replace('Job reference:', '').strip()) if details_section.find('p', class_='jobreference') else generate_unique_id(title)
+                salary = clean_text(details_section.find('p', class_='salary').text.replace('Salary:', '').strip()) if details_section.find('p', class_='salary') else 'N/A'
+                closing_date = convert_to_standard_date(clean_text(details_section.find('p', class_='closingdate').text.replace('Closing date:', '').strip()) if details_section.find('p', class_='closingdate') else 'N/A')
+                location = clean_text(details_section.find('p', class_='location').text.replace('Location:', '').strip()) if details_section.find('p', class_='location') else 'N/A'
+                employment_type = clean_text(details_section.find('p', class_='employmenttype').text.replace('Employment type:', '').strip()) if details_section.find('p', class_='employmenttype') else 'N/A'
+                hours_per_week = clean_text(details_section.find('p', class_='hours').text.replace('Hours per week:', '').strip()) if details_section.find('p', class_='hours') else 'N/A'
+                live_date = clean_text(details_section.find('p', class_='livedate').text.replace('Live date:', '').strip()) if details_section.find('p', class_='livedate') else 'N/A'
+                employer = clean_text(details_section.find('p', class_='school').text.replace('Employer (NHS Board):', '').strip()) if details_section.find('p', class_='school') else 'N/A'
 
-                    # Create JobPosting object
-                    job_posting = JobPosting(
-                        job_search_engine=job_search_engine,
-                        category=category,
-                        title=title,
-                        location=location,
-                        salary=salary,
-                        date_posted=live_date,
-                        closing_date=closing_date,
-                        contract_type=employment_type,
-                        working_pattern=hours_per_week,
-                        job_link=job_link
-                    )
+                # Create JobPosting object
+                job_posting = JobPosting(
+                    job_search_engine=job_search_engine,
+                    category=category,
+                    title=title,
+                    location=location,
+                    salary=salary,
+                    date_posted=live_date,
+                    closing_date=closing_date,
+                    contract_type=employment_type,
+                    working_pattern=hours_per_week,
+                    job_link=job_link
+                )
 
-                    job_posting.reference_number = reference
-                    job_posting.employer_name = employer
+                job_posting.reference_number = reference
+                job_posting.employer_name = employer
 
-                    # Extract more details from job detail page
-                    await extract_job_details(page, job_posting)
-                    job_listings.append(job_posting)
+                # Extract more details from job detail page
+                await extract_job_details(page, job_posting)
+                job_listings.append(job_posting)
 
-                logging.info(f"Page {page_number} scraped.")
+            logging.info(f"Page {page_number} scraped.")
 
-                next_page_tag = soup.find('a', class_='next-page')
-                if next_page_tag:
-                    url = f"https://apply.jobs.scot.nhs.uk{next_page_tag['href']}"
-                    page_number += 1
-                else:
-                    break
+            next_page_tag = soup.find('a', class_='next-page')
+            if next_page_tag:
+                url = f"https://apply.jobs.scot.nhs.uk{next_page_tag['href']}"
+                page_number += 1
+            else:
+                break
 
-        except Exception as e:
-            logging.error(f"Error while scraping page {page_number}: {e}")
-        finally:
-            await browser.close()
+    except Exception as e:
+        logging.error(f"Error while scraping page {page_number}: {e}")
+    finally:
+        await page.close()  # Close the page after scraping
 
     return job_listings
