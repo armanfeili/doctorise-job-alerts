@@ -203,7 +203,7 @@ def convert_to_standard_date(date_str):
             return date_str
 
         else:
-            raise ValueError("Date format not recognized")
+            return date_str
     
     except Exception as e:
         print(f"Error: {e}")
