@@ -12,8 +12,7 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - TELEGRAM_CHANNEL_IDS=${TELEGRAM_CHANNEL_IDS}
       - DB_FILE=/app/db/jobs.db  # Path to the SQLite DB inside the container
-    restart: unless-stopped  # Ensures container restarts if it crashes
-
+    restart: always  # Ensures container restarts even after a manual stop
 networks:
   project_network:
     driver: bridge
