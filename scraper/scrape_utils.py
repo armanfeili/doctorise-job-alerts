@@ -23,7 +23,7 @@ medical_stop_words = [
     "Cognitive Behavioral Therapist", "CBT Therapist", "Trauma Therapist",
     
     # Social care-related terms
-    "Social care", "Social Worker", "Social Services", "Care Worker", "Support Worker", 
+    "Assistant", "Social care", "Social Worker", "Social Services", "Care Worker", "Support Worker", 
     "Residential Care", "Care Assistant", "Community Care Worker", "Elderly Care", 
     "Child Care Worker", "Home Care Worker", "Case Worker",
     
