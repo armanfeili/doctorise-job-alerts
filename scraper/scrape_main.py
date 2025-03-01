@@ -40,9 +40,11 @@ async def scrape_and_process_jobs(urls, scraper_function, job_search_engine, cat
 # Main function to scrape jobs from multiple sources independently
 async def main():
     nhs_urls = [
-        "https://www.jobs.nhs.uk/candidate/search/results?keyword=FY2,%20CT1,%20CT2,%20ST1,%20ST2,%20ST3,%20LAS,%20Trust%20doctor,%20Trust%20grade&payBand=SPECIALTY_DOCTOR,FOUNDATION_DOCTOR,DOCTOR_OTHER&payRange=30-40,40-50&skipPhraseSuggester=true&searchFormType=sortBy&sort=publicationDateDesc&language=en",
-        "https://www.jobs.nhs.uk/candidate/search/results?keyword=Clinical%20fellow,%20SHO,%20Junior%20Clinical%20fellow,%20teaching%20fellow,%20Academic%20follow&payBand=SPECIALTY_DOCTOR,FOUNDATION_DOCTOR,DOCTOR_OTHER&payRange=30-40,40-50&skipPhraseSuggester=true&searchFormType=sortBy&sort=publicationDateDesc&language=en"
+        "https://www.jobs.nhs.uk/candidate/search/results?staffGroup=MEDICAL_AND_DENTAL&payRange=40-50%2C50-60%2C60-70&searchFormType=sortBy&sort=publicationDateDesc&language=en"
     ]
+
+    # "https://www.jobs.nhs.uk/candidate/search/results?keyword=FY2,%20CT1,%20CT2,%20ST1,%20ST2,%20ST3,%20LAS,%20Trust%20doctor,%20Trust%20grade&payBand=SPECIALTY_DOCTOR,FOUNDATION_DOCTOR,DOCTOR_OTHER&payRange=30-40,40-50&skipPhraseSuggester=true&searchFormType=sortBy&sort=publicationDateDesc&language=en",
+    # "https://www.jobs.nhs.uk/candidate/search/results?keyword=Clinical%20fellow,%20SHO,%20Junior%20Clinical%20fellow,%20teaching%20fellow,%20Academic%20follow&payBand=SPECIALTY_DOCTOR,FOUNDATION_DOCTOR,DOCTOR_OTHER&payRange=30-40,40-50&skipPhraseSuggester=true&searchFormType=sortBy&sort=publicationDateDesc&language=en"
     
     # nhs_scot_urls = [
     #     "https://apply.jobs.scot.nhs.uk/Home/Job"

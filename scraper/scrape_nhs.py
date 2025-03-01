@@ -180,7 +180,7 @@ async def scrape_jobs_playwright(url, job_search_engine, category, stop_words, c
     Scrapes job postings from NHS using Playwright and BeautifulSoup,
     filtering by stop words, limiting to 2 pages, saving each job individually.
     """
-    MAX_PAGES = 2
+    MAX_PAGES = 3
     page_number = 1
 
     page = await browser.new_page()
