@@ -8,3 +8,6 @@ docker-compose rm -f $service_name
 
 echo "Rebuilding and starting the $service_name service..."
 docker-compose up --build -d $service_name
+
+echo "Ensuring all services are running..."
+docker-compose -f compose.yml up -d  # Ensures all services are up
