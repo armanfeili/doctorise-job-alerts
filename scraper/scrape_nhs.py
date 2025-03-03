@@ -31,8 +31,9 @@ async def safe_page_goto(page, url, wait_until='domcontentloaded', max_retries=3
         try:
             # Set a random User-Agent
             await page.set_extra_http_headers({"User-Agent": random.choice(USER_AGENTS)})
+            # Omit making delay, because the server itself is slow enough
             # Random delay before each request
-            await asyncio.sleep(random.uniform(0.5, 1))
+            # await asyncio.sleep(random.uniform(0.5, 1))
 
             await page.goto(url, wait_until=wait_until, timeout=30000)
             return
