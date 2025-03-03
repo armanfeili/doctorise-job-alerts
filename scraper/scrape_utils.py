@@ -67,8 +67,13 @@ medical_stop_words = [
     "Medical lecturer",
     
     # Specialty training-related terms
-    "ST5", "ST6", "ST7", "ST8"
+    "ST5", "ST6", "ST7", "ST8",
+    
+    # Additional terms
+    "Band", "Secretary", "Mammographer", "Coordinator", "Co-ordinator", "Admin", 
+    "Administrator", "Audiologist", "Officer", "Engineering"
 ]
+
 
 
 # Enriched Considerable words list
