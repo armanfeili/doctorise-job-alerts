@@ -71,7 +71,7 @@ medical_stop_words = [
     
     # Additional terms
     "Band", "Secretary", "Mammographer", "Coordinator", "Co-ordinator", "Admin", 
-    "Administrator", "Audiologist", "Officer", "Engineering"
+    "Administrator", "Audiologist", "Officer", "Engineering", "Prescriber"
 ]
 
 

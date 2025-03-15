@@ -9,35 +9,69 @@ from playwright.async_api import async_playwright
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# Create a semaphore to limit the number of concurrent tasks
-sem = asyncio.Semaphore(2)  # Allow up to 2 concurrent tasks
+# Increase concurrency to 3
+sem = asyncio.Semaphore(3)
+
+async def scrape_with_semaphore(
+    url, scraper_function, job_search_engine, category, stop_words, considerable_words, browser
+):
+    """
+    Small wrapper that ensures we only scrape `url` when the semaphore is available,
+    thus limiting concurrency to sem's value.
+    """
+    async with sem:
+        logging.info(f"Scraping {url} with concurrency limit (up to 3).")
+        return await scraper_function(
+            url,
+            job_search_engine,
+            category,
+            stop_words,
+            considerable_words,
+            browser
+        )
 
 # Generic scraping function to handle different sources with error handling
 async def run_scraper(scraper_function, urls, job_search_engine, category, stop_words, considerable_words, browser):
-    """Runs a scraping task with error handling and stop words filtering."""
+    """Runs a scraping task (for multiple URLs) with error handling."""
     try:
         logging.info(f"{job_search_engine} scraping started")
-        await scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considerable_words, browser)
+        return await scrape_and_process_jobs(
+            urls, scraper_function, job_search_engine, category,
+            stop_words, considerable_words, browser
+        )
     except Exception as e:
         logging.error(f"Error scraping {job_search_engine}: {e}")
+        return []
 
 # Generic function to scrape and process jobs
 async def scrape_and_process_jobs(urls, scraper_function, job_search_engine, category, stop_words, considerable_words, browser):
-    """Scrapes and processes job postings from given URLs."""
-    all_jobs = []
-    
+    """Scrapes and processes all job postings from the given URLs in parallel."""
+    tasks = []
     for url in urls:
-        try:
-            logging.info(f"Scraping jobs from {url} ({job_search_engine})")
-            jobs = await scraper_function(url, job_search_engine, category, stop_words, considerable_words, browser)
-            all_jobs.extend(jobs)
-        except Exception as e:
-            logging.error(f"Error scraping {url}: {e}")
-    
+        # Create a separate task for each URL, limited by the semaphore
+        tasks.append(asyncio.create_task(
+            scrape_with_semaphore(
+                url, scraper_function, job_search_engine, category,
+                stop_words, considerable_words, browser
+            )
+        ))
+
+    # Gather results in parallel. Each task returns the list of jobs for that URL.
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Flatten any partial results, ignoring failed tasks
+    all_jobs = []
+    for item in results:
+        # If a task raised an exception, item will be that exception object
+        if isinstance(item, list):
+            all_jobs.extend(item)
+        elif isinstance(item, Exception):
+            logging.error(f"Task raised exception: {item}")
+
     logging.info(f"Scraping from {job_search_engine} completed.")
     return all_jobs
 
-# Main function to scrape jobs from multiple sources independently
+# Main function to scrape jobs from multiple sources
 async def main():
     nhs_urls = [
         "https://www.jobs.nhs.uk/candidate/search/results?staffGroup=MEDICAL_AND_DENTAL&payRange=40-50%2C50-60%2C60-70&searchFormType=sortBy&sort=publicationDateDesc&language=en"
@@ -49,6 +83,7 @@ async def main():
     # nhs_scot_urls = [
     #     "https://apply.jobs.scot.nhs.uk/Home/Job"
     # ]
+
 
     healthjobsuk_urls = [
         "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=447&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
@@ -62,37 +97,6 @@ async def main():
         "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=7033239&_srt=startdate&_sd=d"
     ]
 
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=7033239&_srt=startdate&_sd=d",        
-        
-
-    # "https://www.healthjobsuk.com/"
-        
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=6830&_srt=startdate&_sd=a"
-
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=752162&_srt=startdate&_sd=a"
-
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=7057452&_pg=2&_pgid=",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=7058272&_pg=3&_pgid="        
-        
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=447&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=441&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=540&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=55&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=255&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=534&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=84&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=444&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=&_srt=startdate&_sd=d"
-
-
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=447&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=17512&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=441&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=24047&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=540&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=27829&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=55&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=30273&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=255&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=32987&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=534&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=41095&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=84&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=44801&_srt=startdate&_sd=a",
-    # "https://www.healthjobsuk.com/job_list?JobSearch_q=&JobSearch_d=&JobSearch_g=444&JobSearch_re=_POST&JobSearch_re_0=1&JobSearch_re_1=1-_-_-&JobSearch_re_2=1-_-_--_-_-&JobSearch_Submit=Search&_tr=JobSearch&_ts=47883&_srt=startdate&_sd=a"
-
     # Initialize Playwright and share the browser instance across all tasks
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -100,12 +104,30 @@ async def main():
         while True:
             logging.info("Starting scraping process...")
 
-            # Run tasks sequentially
-            await run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", medical_stop_words, medical_considerable, browser)
-            # await run_scraper(scrape_nhs_scot_jobs, nhs_scot_urls, "NHS Scotland", "Medical", medical_stop_words, medical_considerable, browser)
-            await run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", medical_stop_words, medical_considerable, browser)
+            # Option 1: Keep the two sources sequential if you wish:
+            # -----------------------------------------------------
+            # await run_scraper(scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical", medical_stop_words, medical_considerable, browser)
+            # await run_scraper(scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical", medical_stop_words, medical_considerable, browser)
+
+            # OR
+
+            # Option 2: Run both sources fully in parallel:
+            # -----------------------------------------------------
+            tasks = [
+                asyncio.create_task(
+                    run_scraper(
+                        scrape_nhs_jobs, nhs_urls, "NHS Jobs", "Medical",
+                        medical_stop_words, medical_considerable, browser
+                    )
+                ),
+                asyncio.create_task(
+                    run_scraper(
+                        scrape_healthjobsuk_jobs, healthjobsuk_urls, "Health Jobs UK", "Medical",
+                        medical_stop_words, medical_considerable, browser
+                    )
+                )
+            ]
+            await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
