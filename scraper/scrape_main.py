@@ -70,7 +70,7 @@ async def scrape_and_process_jobs(urls, scraper_function, job_search_engine,
 
 async def main():
     # Place the semaphore inside main so it's tied to this event loop
-    sem = asyncio.Semaphore(3)
+    sem = asyncio.Semaphore(5)
 
     nhs_urls = [
         "https://www.jobs.nhs.uk/candidate/search/results?staffGroup=MEDICAL_AND_DENTAL&payRange=40-50%2C50-60%2C60-70&searchFormType=sortBy&sort=publicationDateDesc&language=en"
