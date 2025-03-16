@@ -39,7 +39,7 @@ message_counter = 0
 last_reset_time = time.time()  # Tracks the last reset time
 
 # Send Telegram message with adaptive delay
-async def send_telegram_message(job, max_retries=5):
+async def send_telegram_message(job, max_retries=10):
     global message_counter, last_reset_time
     bot_token, chat_id = Config.TELEGRAM_BOT_TOKEN, Config.TELEGRAM_CHAT_ID
 
