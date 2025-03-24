@@ -75,14 +75,14 @@ medical_stop_words = [
 ]
 
 
-
+# Remove Considerable
 # Enriched Considerable words list
 medical_considerable = [
     # Clinical Fellow (CT)
     "clinical", "medical", "doctor", "fellow", "Clinical Fellow", "(CT)", "Junior Doctor", "Training Doctor", "Core Trainee", 
     "Medical Rotation", "Hospital Placement", "Foundation Training", "Postgraduate Medical Education", 
     "Medical Foundation Trainee", "Training Fellowship", "CT Fellow", "CT Doctor", "Local Employed Doctor", 
-    "LED", "Trust Doctor", "ST1", "ST2", "CT1", "CT2", "FY2", "FY2/CT1", "Medical research", "Clinical research", 
+    "LED", "Trust Doctor", "ST1/2", "ST1", "ST2", "CT1", "CT2", "FY2", "FY2/CT1", "Medical research", "Clinical research", 
     "Research Fellow",  "Clinical Research Fellow", "Research Clinical Fellow", "Clinical Trainee Fellow", 
     "Postgraduate Fellow", "Core Training Fellow", "Junior Foundation Fellow", "Medical Research Fellow", 
     "Medical Clinical Fellow", "Research Trainee Doctor", "Clinical Doctor Fellow", "ST Fellow", "CT Medical Fellow", 
@@ -150,7 +150,7 @@ medical_considerable = [
     "SHO Residency Program", "Senior Hospital SHO", "Senior Resident SHO", "SHO Clinical Fellow", 
     "Postgraduate SHO Doctor", "Junior House Officer Doctor", "SHO Fellowship", "Resident House Officer", 
     "SHO Medical Trainee", "Medical Resident Fellow", "Intermediate SHO Trainee", "Resident SHO Doctor", 
-    "Clinical SHO Doctor", "Junior Medical SHO", "Senior Resident Doctor"
+    "Clinical SHO Doctor", "Junior Medical SHO", "Senior Resident Doctor", "Resident Doctor"
 ]
 
 
